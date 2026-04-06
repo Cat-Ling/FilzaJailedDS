@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1
+
+      - name: Build tweak
+        run: make package FINALPACKAGE=1
+
+      - name: Collect artifacts
+        id: artifacts
+        run: |
+          # Grab the .deb
+          DEB=$(ls packages/*.deb | head -1)
+          echo "deb=$DEB" >> "$GITHUB_OUTPUT"
+          echo "deb_name=$(basename $DEB)" >> "$GITHUB_OUTPUT"
+
+          # Grab the dylib from .theos build dir
+          DYLIB=$(find .theos/obj -name "*.dylib" | head -1)
+          if [ -n "$DYLIB" ]; then
+            cp "$DYLIB" "FilzaApplySandboxExt.dylib"
+            echo "dylib=FilzaApplySandboxExt.dylib" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: FilzaJailedDS ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.artifacts.outputs.deb }}
+            ${{ steps.artifacts.outputs.dylib }}
